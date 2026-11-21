@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indovina il suono</title>
+    <style>
+        /* Regole generali: un solo font senza grazie, grande, contrasto forte, testo a sinistra */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            text-align: left;
+        }
+
+        body {
+            background-color: #FFFFFF;
+            color: #000000;
+            font-size: 26px;
+            line-height: 1.4;
+            padding: 20px;
+            max-width: 850px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 38px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            border-bottom: 4px solid #000000;
+            padding-bottom: 10px;
+        }
+
+        p {
+            margin-bottom: 20px;
+        }
+
+        /* Pulsanti grandi (minimo 80px di altezza) e ad alto contrasto */
+        button {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            width: 100%;
+            min-height: 85px;
+            padding: 15px 25px;
+            font-size: 30px;
+            font-weight: bold;
+            border: 4px solid #000000;
+            border-radius: 12px;
+            cursor: pointer;
+            margin-bottom: 18px;
+            transition: background-color 0.15s ease;
+            touch-action: manipulation; /* Migliora il tocco su LIM e tablet */
+        }
+
+        button:active {
+            transform: scale(0.99);
+        }
+
+        /* Pulsante Ascolta */
+        #btn-ascolta {
+            background-color: #FFD600; /* Giallo acceso ad alto contrasto */
+            color: #000000;
+            margin-bottom: 30px;
+        }
+
+        #btn-ascolta:hover {
+            background-color: #FFEA00;
+        }
+
+        /* Carte risposta */
+        .carta {
+            background-color: #F2F2F2;
+            color: #000000;
+        }
+
+        .carta:hover {
+            background-color: #E0E0E0;
+        }
+
+        .emoji {
+            font-size: 42px;
+            margin-right: 20px;
+            display: inline-block;
+        }
+
+        /* Stato risposta giusta */
+        .carta.giusta {
+            background-color: #00A843 !important; /* Verde brillante */
+            color: #FFFFFF !important;
+            border-color: #000000;
+        }
+
+        /* Stato risposta sbagliata e animazione tremolio */
+        .carta.sbagliata {
+            background-color: #FFCDD2;
+            animation: trema 0.4s ease-in-out;
+        }
+
+        @keyframes trema {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-12px); }
+            40% { transform: translateX(12px); }
+            60% { transform: translateX(-12px); }
+            80% { transform: translateX(12px); }
+        }
+
+        /* Pulsante Avanti e Ricomincia */
+        #btn-avanti, #btn-ricomincia {
+            background-color: #0055FF;
+            color: #FFFFFF;
+            margin-top: 25px;
+        }
+
+        #btn-avanti:hover, #btn-ricomincia:hover {
+            background-color: #0044CC;
+        }
+
+        /* Messaggio di errore file mancante */
+        #messaggio-errore {
+            background-color: #D32F2F;
+            color: #FFFFFF;
+            padding: 20px;
+            border: 4px solid #000000;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        /* Schermata finale */
+        #schermata-fine h2 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #000000;
+        }
+
+        .nascosto {
+            display: none !important;
+        }
+
+        /* Adattamento per schermi piccoli (telefoni) */
+        @media (max-width: 500px) {
+            body {
+                font-size: 22px;
+                padding: 15px;
+            }
+            h1 {
+                font-size: 32px;
+            }
+            button {
+                font-size: 26px;
+                padding: 12px 18px;
+            }
+            .emoji {
+                font-size: 36px;
+                margin-right: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Indovina il suono</h1>
+
+    <!-- Box per eventuali errori di file non trovato -->
+    <div id="messaggio-errore" class="nascosto" role="alert"></div>
+
+    <!-- Area di gioco principale -->
+    <div id="area-gioco">
+        <p id="contatore">Suono 1 di 4</p>
+
+        <button id="btn-ascolta" type="button">
+            <span class="emoji">🔊</span> Ascolta
+        </button>
+
+        <div id="contenitore-carte">
+            <!-- Le 3 carte verranno inserite qui dal codice -->
+        </div>
+
+        <button id="btn-avanti" type="button" class="nascosto">
+            Avanti ➡️
+        </button>
+    </div>
+
+    <!-- Schermata finale -->
+    <div id="schermata-fine" class="nascosto">
+        <h2>Bravi! 🎉</h2>
+        <p>Avete indovinato tutti i suoni.</p>
+        <button id="btn-ricomincia" type="button">
+            🔄 Ricomincia
+        </button>
+    </div>
+
+    <script>
+        // Elenco dei suoni con i nomi esatti richiesti
+        const elencoSuoni = [
+            { file: "picchio.mp3", parola: "picchio", emoji: "🐦" },
+            { file: "foglie fruscianti.mp3", parola: "foglie", emoji: "🍂" },
+            { file: "tamburo.mp3", parola: "Tamburo", emoji: "🥁" },
+            { file: "violino.mp3", parola: "violino", emoji: "🎻" }
+        ];
+
+        let suoniDaIndovinare = [];
+        let indiceCorrente = 0;
+        let suonoAttuale = null;
+        let audioCorrente = null;
+        let domandaRisolta = false;
+
+        // Elementi della pagina
+        const areaGioco = document.getElementById("area-gioco");
+        const schermataFine = document.getElementById("schermata-fine");
+        const contatore = document.getElementById("contatore");
+        const btnAscolta = document.getElementById("btn-ascolta");
+        const contenitoreCarte = document.getElementById("contenitore-carte");
+        const btnAvanti = document.getElementById("btn-avanti");
+        const btnRicomincia = document.getElementById("btn-ricomincia");
+        const boxErrore = document.getElementById("messaggio-errore");
+
+        // Funzione per mescolare un array in ordine casuale
+        function mescola(array) {
+            const copia = [...array];
+            for (let i = copia.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copia[i], copia[j]] = [copia[j], copia[i]];
+            }
+            return copia;
+        }
+
+        // Genera due note brevi di festa usando l'audio interno del browser (nessun file esterno)
+        function suonaFesta() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioCtx();
+
+                // Prima nota (Do5)
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = "triangle";
+                osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+                gain1.gain.setValueAtTime(0.25, ctx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.start(ctx.currentTime);
+                osc1.stop(ctx.currentTime + 0.15);
+
+                // Seconda nota (Sol5)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = "triangle";
+                osc2.frequency.setValueAtTime(783.99, ctx.currentTime + 0.16);
+                gain2.gain.setValueAtTime(0.25, ctx.currentTime + 0.16);
+                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start(ctx.currentTime + 0.16);
+                osc2.stop(ctx.currentTime + 0.45);
+            } catch (e) {
+                // Se il browser blocca l'audio sintetizzato, prosegue senza errori
+            }
+        }
+
+        // Ferma eventuali suoni in riproduzione
+        function fermaAudio() {
+            if (audioCorrente) {
+                audioCorrente.pause();
+                audioCorrente.currentTime = 0;
+            }
+        }
+
+        // Riproduce il file MP3 del suono corrente
+        function riproduciSuonoCorrente() {
+            nascondiErrore();
+            fermaAudio();
+
+            audioCorrente = new Audio(suonoAttuale.file);
+
+            // Gestione errore se il file non esiste o non è leggibile
+            audioCorrente.addEventListener("error", function() {
+                mostraErrore("Attenzione: non trovo il file audio «" + suonoAttuale.file + "». Controlla che sia nella stessa cartella di questa pagina.");
+            });
+
+            audioCorrente.play().catch(function(err) {
+                // Cattura errori di caricamento o mancato file
+                if (audioCorrente.error) {
+                    mostraErrore("Attenzione: non trovo il file audio «" + suonoAttuale.file + "». Controlla che sia nella stessa cartella di questa pagina.");
+                }
+            });
+        }
+
+        function mostraErrore(testo) {
+            boxErrore.textContent = testo;
+            boxErrore.classList.remove("nascosto");
+        }
+
+        function nascondiErrore() {
+            boxErrore.textContent = "";
+            boxErrore.classList.add("nascosto");
+        }
+
+        // Avvia o riavvia il gioco
+        function iniziaGioco() {
+            suoniDaIndovinare = mescola(elencoSuoni);
+            indiceCorrente = 0;
+            schermataFine.classList.add("nascosto");
+            areaGioco.classList.remove("nascosto");
+            caricaTurno();
+        }
+
+        // Prepara la schermata per il suono corrente
+        function caricaTurno() {
+            domandaRisolta = false;
+            nascondiErrore();
+            fermaAudio();
+            btnAvanti.classList.add("nascosto");
+
+            suonoAttuale = suoniDaIndovinare[indiceCorrente];
+            contatore.textContent = "Suono " + (indiceCorrente + 1) + " di " + suoniDaIndovinare.length;
+
+            // Sceglie 2 suoni sbagliati a caso tra gli altri
+            const altriSuoni = elencoSuoni.filter(s => s.file !== suonoAttuale.file);
+            const sbagliatiScelti = mescola(altriSuoni).slice(0, 2);
+
+            // Unisce la risposta giusta alle 2 sbagliate e le mescola
+            const opzioniTurno = mescola([suonoAttuale, ...sbagliatiScelti]);
+
+            // Crea le 3 carte nella pagina
+            contenitoreCarte.innerHTML = "";
+            opzioniTurno.forEach(opzione => {
+                const btnCarta = document.createElement("button");
+                btnCarta.type = "button";
+                btnCarta.className = "carta";
+                btnCarta.innerHTML = `<span class="emoji">${opzione.emoji}</span> <span>${opzione.parola}</span>`;
+
+                btnCarta.addEventListener("click", function() {
+                    gestisciScelta(btnCarta, opzione);
+                });
+
+                contenitoreCarte.appendChild(btnCarta);
+            });
+        }
+
+        // Controlla se la carta toccata è giusta o sbagliata
+        function gestisciScelta(bottone, opzioneScelta) {
+            if (domandaRisolta) return; // Evita tocchi multipli dopo aver indovinato
+
+            if (opzioneScelta.file === suonoAttuale.file) {
+                // Risposta giusta
+                domandaRisolta = true;
+                fermaAudio();
+                bottone.classList.remove("sbagliata");
+                bottone.classList.add("giusta");
+                suonaFesta();
+                btnAvanti.classList.remove("nascosto");
+            } else {
+                // Risposta sbagliata: rimuove e riapplica la classe per farla tremare ad ogni tocco
+                bottone.classList.remove("sbagliata");
+                void bottone.offsetWidth; // Forza il riavvio dell'animazione CSS
+                bottone.classList.add("sbagliata");
+            }
+        }
+
+        // Collegamento dei pulsanti principali
+        btnAscolta.addEventListener("click", riproduciSuonoCorrente);
+
+        btnAvanti.addEventListener("click", function() {
+            indiceCorrente++;
+            if (indiceCorrente < suoniDaIndovinare.length) {
+                caricaTurno();
+            } else {
+                fermaAudio();
+                areaGioco.classList.add("nascosto");
+                schermataFine.classList.remove("nascosto");
+            }
+        });
+
+        btnRicomincia.addEventListener("click", iniziaGioco);
+
+        // Avvio automatico all'apertura della pagina
+        iniziaGioco();
+    </script>
+</body>
+</html>
